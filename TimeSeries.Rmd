@@ -1,6 +1,5 @@
 ---
 title: "Untitled"
-author: "Xinyue Zhang"
 date: "11/22/2017"
 output: pdf_document
 ---

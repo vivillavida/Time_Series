@@ -1,0 +1,425 @@
+---
+title: "Untitled"
+author: "Xinyue Zhang"
+date: "11/22/2017"
+output: pdf_document
+---
+
+
+```{r}
+library(ggplot2)
+library(forecast)
+library(gridExtra)
+library(TSA)
+library(MASS)
+library("tseries")
+```
+
+
+```{r}
+# load the data
+product.data <- read.csv("~/Documents/statistics/UCSB/274/Project/product.csv")
+head(product.data)
+attach(product.data)
+str(product.data)
+product<-product.data$Price[1:138]
+pred.product<- ts(product.data$Price[139:144],frequency=4,start=c(1994,2),end=c(1995,3))
+
+```
+
+### EDA
+```{r}
+par(mfrow=c( 2,3))
+product.ts <- ts(product.data$Price, frequency=4, start=c(1959,4))
+# plot for original dataset
+ts.plot(product, ylab = 'Price', main = "Time Series Plot")
+# add the trend line
+abline(lm(product~as.numeric(1:length(product))),col="red")
+# add the mean line
+abline(h=mean(product), col="blue")
+ 
+# seasonplot
+
+seasonplot(product.ts, year.labels = TRUE, year.labels.left=TRUE, col=1:40, pch=19, main = "Seasonal plot", xlab = "Quarter", ylab = "Price")
+
+# quarter boxplots
+boxplot(product.ts~cycle(product.ts),main="Boxplots for 4 quarters")
+var(product.ts)
+```
+
+
+### Decompose for original data
+```{r}
+plot(stl(product.ts, s.window="periodic"), main="The Decomposition of the Time Series")
+```
+
+
+### Boxcox Transformation
+```{r}
+pro.bc<-boxcox(product~as.numeric(1:length(product)),lambda = seq(0.5, 1,length = 30))
+(lambda = pro.bc$x[which(pro.bc$y == max(pro.bc$y))])
+```
+
+lambda = 0.75
+
+### plot after boxcox transformation
+```{r}
+pro.trans<- (1/0.75)*((product)^0.75 - 1)
+pro.trans.ts<-ts(pro.trans)
+```
+
+
+## check variance
+
+# plot for original data
+```{r}
+product.a<-as.data.frame(product[1:34])
+product.a$decade<-rep("59-68",34) 
+colnames(product.a) <- c("NewPrice","decade")
+
+product.b<-as.data.frame(product[35:69])
+product.b$decade<-rep("69-77",35) 
+colnames(product.b) <- c("NewPrice","decade")
+
+product.c<-as.data.frame(product[70:104])
+product.c$decade<-rep("78-86",35)
+colnames(product.c) <- c("NewPrice","decade")
+
+product.d<-as.data.frame(product[105:138])
+product.d$decade<-rep("87-95",34)
+colnames(product.d) <- c("NewPrice","decade")
+
+product.decade<-rbind(product.a,product.b,product.c,product.d)
+
+box<-ggplot(product.decade, aes(x= factor(decade), y=NewPrice,fill = factor(decade)))+geom_boxplot()+labs(title="boxplot for original data")
+
+dens<-ggplot(product.decade, aes(NewPrice,fill = factor(decade), colour = factor(decade))) +geom_density(alpha = 0.3)+labs(title="Density of Product")
+```
+
+
+# plot for lambda=0.75
+```{r}
+pro.trans.a<-as.data.frame(pro.trans[1:34])
+pro.trans.a$decade<-rep("59-68",34)
+colnames(pro.trans.a) <- c("NewPrice","decade")
+
+pro.trans.b<-as.data.frame(pro.trans[35:69])
+pro.trans.b$decade<-rep("69-77",35)
+colnames(pro.trans.b) <- c("NewPrice","decade")
+
+pro.trans.c<-as.data.frame(pro.trans[70:104])
+pro.trans.c$decade<-rep("78-86",35)
+colnames(pro.trans.c) <- c("NewPrice","decade")
+
+pro.trans.d<-as.data.frame(pro.trans[105:138])
+pro.trans.d$decade<-rep("87-95",34)
+colnames(pro.trans.d) <- c("NewPrice","decade")
+
+pro.trans.decade<-rbind(pro.trans.a,pro.trans.b,pro.trans.c,pro.trans.d)
+
+box0.75<-ggplot(pro.trans.decade, aes(x= factor(decade), y=NewPrice,fill = factor(decade)))+geom_boxplot()+labs(title="boxplot for Lambda=0.75")
+
+dens0.75<-ggplot(pro.trans.decade, aes(NewPrice,fill = factor(decade), colour = factor(decade))) +geom_density(alpha = 0.3)+labs(title="Density of Product^0.75")
+```
+
+# plot for log
+```{r}
+pro.lam<-log(product)
+pro.lam.ts<-ts(pro.lam)
+pro.lam.a<-as.data.frame(pro.lam[1:34])
+pro.lam.a$decade<-rep("59-68",34)
+colnames(pro.lam.a) <- c("NewPrice","decade")
+
+pro.lam.b<-as.data.frame(pro.lam[35:69])
+pro.lam.b$decade<-rep("69-77",35)
+colnames(pro.lam.b) <- c("NewPrice","decade")
+
+pro.lam.c<-as.data.frame(pro.lam[70:104])
+pro.lam.c$decade<-rep("78-86",35)
+colnames(pro.lam.c) <- c("NewPrice","decade")
+
+pro.lam.d<-as.data.frame(pro.lam[105:138])
+pro.lam.d$decade<-rep("87-95",34)
+colnames(pro.lam.d) <- c("NewPrice","decade")
+pro.lam.decade<-rbind(pro.lam.a,pro.lam.b,pro.lam.c,pro.lam.d)
+
+boxlog<-ggplot(pro.lam.decade, aes(x= factor(decade), y=NewPrice,fill = factor(decade)))+geom_boxplot()+labs(title="boxplot for Lambda = 0")
+
+denslog<-ggplot(pro.lam.decade, aes(NewPrice,fill = factor(decade), colour = factor(decade))) +geom_density(alpha = 0.3)+labs(title="Density of log(product)")
+```
+
+# time series plot 
+```{r}
+ts0.75<-autoplot(pro.trans.ts,ylab="Product^0.75")+labs(title="Lambda=0.75")
+tslog<-autoplot(pro.lam.ts,ylab="Log Product")+labs(title="Lambda=0")
+ts<-autoplot(product.ts,ylab="Product")+labs(title="Original data")
+```
+
+# plots together
+```{r}
+grid.arrange(box,box0.75,dens,dens0.75,ncol = 2,nrow=2)
+```
+
+
+### ACF PACF plot for Original and Transform data
+```{r}
+par(mfrow=c(2,2))
+acf1<-ggAcf(product, main= "ACF of the Original Data",lag.max=60)
+pacf1<-ggPacf(product, main = "PACF of Original Data",lag.max=61)
+acf2<-ggAcf(pro.trans, main= "ACF of the Transformed Data",lag.max=60)
+pacf2<-ggPacf(pro.trans, main = "PACF of Transformed Data",lag.max=61)
+grid.arrange(acf1,pacf1,acf2,pacf2,ncol = 2,nrow=2)
+```
+
+### differencing at lag 1
+```{r}
+var(pro.trans)
+pro.trans.dif1<- diff(pro.trans,1) #difference at lag one
+var(pro.trans.dif1)
+ts.plot(pro.trans.dif1, main = "transformed data differenced at lag1")
+abline(h=c(mean(pro.trans.dif1)-sd(pro.trans.dif1),mean(pro.trans.dif1),
+mean(pro.trans.dif1)+sd(pro.trans.dif1)),
+col=c("green","red","green"))
+abline(lm(pro.trans.dif1~as.numeric(1:length(pro.trans.dif1))),col="blue")
+```
+
+
+# ACF PACF plot of diff1
+```{r}
+par(mfrow=c(2,3))
+ts.plot(pro.trans.dif1, main = "transformed data differenced at lag1")
+abline(h=c(mean(pro.trans.dif1)-sd(pro.trans.dif1),mean(pro.trans.dif1),
+mean(pro.trans.dif1)+sd(pro.trans.dif1)),
+col=c("green","red","green"))
+abline(lm(pro.trans.dif1~as.numeric(1:length(pro.trans.dif1))),col="blue")
+acf(pro.trans.dif1, main= "ACF of the Detrend Transformed Data",lag.max=50)
+pacf(pro.trans.dif1, main = "PACF of Detrend Transformed Data",lag.max=50)
+```
+
+
+### over differencing did not use this one
+```{r}
+pro.trans.dif1.dif1<- diff(pro.trans.dif1,1)
+var(pro.trans.dif1.dif1)
+```
+
+# find the frequency
+```{r}
+TSA::periodogram(pro.trans.dif1,main="The Estimated Frequency")
+```
+
+### differencing at lag 4
+```{r}
+pro.trans.dif1.dif4<- diff(pro.trans.dif1, 4)
+var(pro.trans.dif1.dif4)
+
+ggtsdisplay(pro.trans.dif1.dif4,main="Transformed data after differencing")
+# adf test for stationary
+adf.test(pro.trans.dif1.dif4)
+```
+
+
+### estimate the model
+
+```{r}
+auto.arima(pro.trans,trace = T)
+library(astsa)
+fit1<-sarima(pro.trans,0,1,0,0,1,1,4) 
+fit2<-sarima(pro.trans,0,1,0,1,1,1,4)### best fitted model
+fit3<- sarima(pro.trans,0,1,0,2,1,1,4)## the second choice
+fit4<- sarima(pro.trans,0,1,0,3,1,1,4) 
+```
+
+# acf nd pacf for Model 2 and Model 3
+```{r}
+par(mfrow=c(2,2))
+acffit2<-ggAcf(resid(fit2$fit), main= "ACF of Model 2",lag.max=30)
+pacffit2<-ggPacf(resid(fit2$fit), main = "PACF of Model 2",lag.max=30)
+acffit3<-ggAcf(resid(fit3$fit), main= "ACF of Model 3",lag.max=30)
+pacffi3<-ggPacf(resid(fit3$fit), main = "PACF of Model 3",lag.max=30)
+grid.arrange(acffit2,pacffit2,acffit3,pacffi3,ncol = 2,nrow=2)
+```
+
+
+# check white noise
+```{r}
+#Box-Pierce test
+Box.test(resid(fit2$fit), lag=12,type="Box-Pierce",fitdf = 2)
+Box.test(resid(fit3$fit), lag=12,type="Box-Pierce",fitdf = 3)
+
+#Ljung-Box test
+Box.test(resid(fit2$fit), lag=12,type="Ljung-Box",fitdf = 2)
+Box.test(resid(fit3$fit), lag=12,type="Ljung-Box",fitdf = 3)
+
+#McLeod-Li test
+Box.test((resid(fit2$fit))^2, lag=12,type="Ljung-Box",fitdf = 0)
+Box.test((resid(fit3$fit))^2, lag=12,type="Ljung-Box",fitdf = 0)
+```
+
+
+# fit auto AR for model 2 residuals
+```{r}
+library(TSA)
+ar(resid(fit2$fit),aic=T, order.max = NULL,method = c("yule-walker")) 
+tsdiag(arima(resid(fit2$fit)), order=c(0,0,0))
+```
+
+
+# check normality
+```{r}
+shapiro.test(resid(fit2$fit)) 
+```
+
+
+# compare to residuals with standard normal
+```{r}
+par(mfrow=c(2,3))
+res2<-as.numeric(resid(fit2$fit))
+h<-hist(res2,breaks=12, main = "Histogram of Residuals")
+xfit<-seq(min(res2),max(res2),length=40) 
+yfit<-dnorm(xfit,mean=mean(res2),sd=sd(res2)) 
+yfit <- yfit*diff(h$mids[1:2])*length(res2) 
+lines(xfit, yfit, col="red", lwd=2)
+
+library(robustHD)
+stand.resd.fit<-standardize(as.numeric(resid(fit2$fit)),centerFun = mean, scaleFun = sd)
+# density of standardized residual vs standard normal
+d<- density(stand.resd.fit)
+plot(d,main="Density of Standardized Residual vs. Standard Normal")
+x <- seq(-4,4,length=1000)
+y <- dnorm(x,mean=0, sd=1)
+lines(x, y, col="blue", lwd=2)
+qqnorm(resid(fit2$fit))
+qqline(resid(fit2$fit))
+
+```
+
+
+# check invertibility
+
+```{r}
+setwd('/Users/Xinyue/Documents/statistics/UCSB/274/Project') 
+source("plot.roots.R.txt") 
+par(mfrow=c(2,2))
+plot.roots(NULL,polyroot(c(1,0,0,0,0.3167)), main="roots of ar part")
+plot.roots(NULL,polyroot(c(1,0,0,0,-0.7947)), main="roots of ma part")
+```
+
+
+```{r}
+source("spec.arma.R.txt") 
+spec.arma(ar=c(0,0,0,0.3167), ma=c(0,0,0,-0.7947))
+```
+
+
+# Spectral analysis
+```{r}
+par(mfrow=c(1,2))
+TSA::periodogram(resid(fit2$fit),main="Periodogram of the residuals")
+#it suggests that periods are every where
+#kolmogoroc test
+cpgram(resid(fit2$fit),main = "Kolmogorov-Smirnov test")
+#fisher's test 
+library(GeneCycle)
+fisher.g.test(resid(fit2$fit))
+```
+
+
+
+```{r}
+model<-Arima(pro.trans.ts,order=c(0,1,0),seasonal = list(order = c(1, 1, 1), period = 4),xreg = 1:length(pro.trans.ts))
+
+accuracy(model)
+par(mfrow=c(2,2))
+# plot on the original scale( fitted and observed)
+ts.plot(product,lwd=2,lty=1,main="Fitted vs. Observed on Original Scale")
+lines((0.75*(model$fitted)+1)^(4/3),col="blue",lwd=2,lty=2)
+legend(0,95000, c("Observed", "Fitted"),lty=c(1),col=c("black", "blue"))
+
+# the prediction of transformed
+library(astsa)
+sarima.for(pro.trans,n.ahead = 6,0,1,0,1,1,1,4)
+
+# prediction of transformed data on original scale
+pre.orig.se<-((16/9)*(((4/3)*pred$pred+1)^(1/3))*pred$se)
+ts.plot(product, xlim=c(100,length(product)+6),ylim=c(60000,110000),lty=1,lwd=2)
+points((length(product)+1):(length(product)+6),pre$pred)
+points((length(product)+1):(length(product)+6), pred.product, col="red",pch=20)
+lines((length(product)+1):(length(product)+6), pred.product, col="red",lty=2)
+
+points((length(product)+1):(length(product)+6), pre.orig, col="blue",pch=20)
+lines((length(product)+1):(length(product)+6), pre.orig, col="blue",lty=2)
+lines((length(product)+1):(length(product)+6),pre.orig+1.96*pre.orig.se,lty=2, col="black")
+lines((length(product)+1):(length(product)+6),pre.orig-1.96*pre.orig.se,lty=2, col="black")
+legend(100,110000, c("Actual", "Prediction", "95% CI"),lty=c(2),col=c("red", "blue", "black"))
+```
+
+
+
+```{r}
+par(mfrow=c(2,3))
+# plot on the original scale( fitted and observed)
+ts.plot(product,lwd=2,lty=1,main="Fitted vs. Observed on Original Data")
+lines((0.75*(model$fitted)+1)^(4/3),col="blue",lwd=2,lty=2)
+legend(0,95000, c("Observed", "Fitted"),lty=c(1),col=c("black", "blue"))
+
+# Forecast next 6 observations of transformed time series
+pre<-predict(model,n.ahead=6,newxreg=((length(pro.trans)+1):(length(pro.trans)+6)))
+U.tr= pre$pred + 1.96*pre$se # upper bound for the C.I. for transformed data
+L.tr= pre$pred - 1.96*pre$se # lower bound
+ts.plot(pro.trans, xlim=c(100,length(pro.trans)+6),ylim=c(5000,max(U.tr)),lty=1,lwd=2,main="Prediction for Transformed Data") 
+lines(U.tr, col="blue", lty="dashed")
+lines(L.tr, col="blue", lty="dashed")
+points((length(pro.trans)+1):(length(pro.trans)+6), pre$pred, col="red",pch=20)
+lines((length(pro.trans)+1):(length(pro.trans)+6), pre$pred, col="red")
+
+
+# return to original data
+pre.orig<-(0.75* pre$pred+1)^(4/3)
+pre.orig.se<-((16/9)*(((4/3)*pre$pred+1)^(1/3))*pre$se)
+U= pre.orig+1.96*pre.orig.se
+L=pre.orig-1.96*pre.orig.se
+ts.plot(product, xlim=c(100,length(product)+6), ylim=c(50000,max(U)),lty=1,lwd=2, main="Prediction for Original Data")
+lines(U, col="black", lty="dashed")
+lines(L, col="black", lty="dashed")
+points((length(product)+1):(length(product)+6), pre.orig, col="red",pch=20)
+lines((length(product)+1):(length(product)+6), pre.orig, col="red")
+points((length(product)+1):(length(product)+6), pred.product, col="blue",pch=20)
+lines((length(product)+1):(length(product)+6), pred.product, col="blue")
+legend(125,70000, c("True Value", "Predict Value", "95% CI"),pch=c(20,20,NA),lty=c(1,1,2),col=c("blue", "red", "black"))
+```
+
+
+```{r}
+par(mfrow=c(2,2))
+holt1<- holt(pro.trans.ts, alpha=0.8, beta=0.2, initial="simple", h=6) 
+holt2 <- holt(pro.trans.ts, alpha=0.8, beta=0.2, initial="simple", exponential=TRUE, h=6) 
+plot(holt2, fcol="white", plot.conf=FALSE)
+lines(fitted(holt1), col="blue") 
+lines(fitted(holt2), col="red")
+lines(holt1$mean, col="blue", type="o") 
+lines(holt2$mean, col="red", type="o")
+legend("topleft", lty=1, col=c("black","blue","red"), 
+   c("Data","Holt's linear trend","Exponential trend"))
+```
+
+
+
+```{r}
+pro.trans1<-ts(pro.trans, frequency=4, start=c(1959,4))
+aust <- window(pro.trans1)
+fit11 <- hw(aust,seasonal="additive")
+fit22 <- hw(aust,seasonal="multiplicative")
+plot(fit11,ylab="Product",
+     plot.conf=FALSE,  fcol="white", xlab="Year")
+lines(fitted(fit11), col="red", lty=2)
+lines(fit11$mean, col="red")
+lines(fitted(fit22), col="blue", lty=2)
+lines(fit22$mean,  col="blue")
+legend("topleft",lty=1, pch=1, col=c("black","red","blue"),
+  c("data","Holt Winters' Additive","Holt Winters' Multiplicative"))
+
+```
+
+
+
